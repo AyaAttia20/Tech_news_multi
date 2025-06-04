@@ -10,7 +10,7 @@ import plotly.express as px
 
 from crewai import Agent, Task, Crew
 from langchain_community.llms import HuggingFaceHub
-from langchain.memory import ConversationBufferMemory
+from langchain.agents import Tool
 
 # Streamlit UI setup
 st.set_page_config(page_title="📊 Tech Trend Analyzer", layout="wide")
@@ -21,8 +21,9 @@ hf_token = st.text_input("🔐 Hugging Face API Token", type="password")
 news_api_key = st.text_input("🗝️ NewsAPI Key", type="password")
 run_button = st.button("🚀 Run Analysis")
 
-# Define the tool as a dict, NOT a Tool class (to avoid import errors)
+# Define the tool function
 def fetch_tech_news(topic: str) -> str:
+    """Fetch recent tech news by topic using NewsAPI."""
     url = "https://newsapi.org/v2/everything"
     params = {
         "q": topic,
@@ -42,11 +43,12 @@ def fetch_tech_news(topic: str) -> str:
         results.append(f"{title} - {desc}")
     return "\n".join(results)
 
-fetch_news_tool = {
-    "name": "fetch_tech_news",
-    "func": fetch_tech_news,
-    "description": "Fetch recent tech news by topic"
-}
+# Create the Tool object properly
+fetch_news_tool = Tool(
+    name="fetch_tech_news",
+    func=fetch_tech_news,
+    description="Fetch recent tech news by topic from NewsAPI"
+)
 
 if run_button:
     if not hf_token or not news_api_key:
@@ -54,77 +56,94 @@ if run_button:
         st.stop()
 
     with st.spinner("Running agents..."):
-        llm = HuggingFaceHub(
-            repo_id="mistralai/Mistral-7B-Instruct-v0.2",
-            huggingfacehub_api_token=hf_token,
-            model_kwargs={"temperature": 0.5, "max_new_tokens": 512}
-        )
+        try:
+            llm = HuggingFaceHub(
+                repo_id="mistralai/Mistral-7B-Instruct-v0.2",
+                huggingfacehub_api_token=hf_token,
+                model_kwargs={"temperature": 0.5, "max_new_tokens": 512}
+            )
 
-        memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+            # Initialize agents with all required parameters
+            fetcher = Agent(
+                role="Tech News Fetcher",
+                goal=f"Fetch the latest news about {topic} from reliable sources",
+                backstory="You are an expert at finding and collecting recent tech news from various sources.",
+                tools=[fetch_news_tool],
+                verbose=True,
+                llm=llm,
+                allow_delegation=False
+            )
 
-        fetcher = Agent(
-            role="News Fetcher",
-            goal="Get recent news about a topic",
-            tools=[fetch_news_tool],  # list of dict tools
-            verbose=True,
-            llm=llm,
-            memory=memory
-        )
+            summarizer = Agent(
+                role="Tech News Summarizer",
+                goal="Summarize tech news articles while maintaining key technical details",
+                backstory="You have a talent for distilling complex tech news into concise, informative summaries.",
+                verbose=True,
+                llm=llm,
+                allow_delegation=False
+            )
 
-        summarizer = Agent(
-            role="News Summarizer",
-            goal="Summarize the key points of tech news",
-            verbose=True,
-            llm=llm,
-            memory=memory
-        )
+            trend_agent = Agent(
+                role="Tech Trend Analyst",
+                goal="Identify emerging trends and patterns in technology news",
+                backstory="You specialize in spotting technological trends before they become mainstream.",
+                verbose=True,
+                llm=llm,
+                allow_delegation=False
+            )
 
-        trend_agent = Agent(
-            role="Trend Extractor",
-            goal="Extract trending keywords from news content",
-            verbose=True,
-            llm=llm,
-            memory=memory
-        )
+            # Define tasks
+            task1 = Task(
+                description=f"Fetch the latest news articles about {topic} using available tools.",
+                expected_output=f"A list of at least 5 recent news articles about {topic} with titles and descriptions.",
+                agent=fetcher
+            )
 
-        task1 = Task(
-            description=f"Fetch recent news about {topic}",
-            expected_output="List of news headlines and descriptions",
-            agent=fetcher
-        )
+            task2 = Task(
+                description="Analyze the fetched news and create a comprehensive summary highlighting the main points.",
+                expected_output="A well-structured paragraph summarizing the key points from the news articles.",
+                agent=summarizer,
+                context=[task1]
+            )
 
-        task2 = Task(
-            description="Summarize the main points from the news.",
-            expected_output="Concise summary paragraph",
-            agent=summarizer,
-            context=[task1]
-        )
+            task3 = Task(
+                description="Analyze the news content to identify trending keywords and technologies.",
+                expected_output="A list of top 10 trending keywords with brief explanations of why they're trending.",
+                agent=trend_agent,
+                context=[task1]
+            )
 
-        task3 = Task(
-            description="Extract the top trending keywords from the news headlines.",
-            expected_output="A list of top 10 trending keywords",
-            agent=trend_agent,
-            context=[task1]
-        )
+            crew = Crew(
+                agents=[fetcher, summarizer, trend_agent],
+                tasks=[task1, task2, task3],
+                verbose=2
+            )
 
-        crew = Crew(
-            agents=[fetcher, summarizer, trend_agent],
-            tasks=[task1, task2, task3],
-            verbose=True
-        )
+            result = crew.kickoff()
 
-        result = crew.kickoff(inputs={"topic": topic})
+            st.success("✅ Analysis Complete!")
+            
+            # Display results
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.subheader("📝 News Summary")
+                st.write(task2.output)
+                
+            with col2:
+                st.subheader("📈 Trending Keywords")
+                try:
+                    keywords = [re.sub(r"[-•]\s*", "", line.strip()) 
+                               for line in str(task3.output).split("\n") if line.strip()]
+                    df_keywords = pd.DataFrame({'Keyword': keywords[:10]})
+                    fig = px.bar(df_keywords, x='Keyword', title="Top Trending Keywords", color='Keyword')
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.error(f"Error displaying trends: {e}")
 
-        st.success("✅ Agents finished analysis!")
+            st.subheader("📰 Raw News Data")
+            st.code(task1.output)
 
-        st.subheader("🧠 Summary")
-        st.write(task2.output)
-
-        st.subheader("📈 Trending Keywords")
-        keywords = [re.sub(r"[-•]\s*", "", line.strip()) for line in str(task3.output).split("\n") if line.strip()]
-        df_keywords = pd.DataFrame({'Keyword': keywords[:10]})
-        fig = px.bar(df_keywords, x='Keyword', title="Top Trending Keywords", color='Keyword')
-        st.plotly_chart(fig, use_container_width=True)
-
-        st.subheader("🗞 Raw News Fetched")
-        st.code(task1.output, language="markdown")
+        except Exception as e:
+            st.error(f"An error occurred: {str(e)}")
+            st.stop()
