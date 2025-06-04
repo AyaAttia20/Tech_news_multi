@@ -12,7 +12,7 @@ from crewai import Agent, Task, Crew
 from langchain_community.llms import HuggingFaceHub
 from langchain.memory import ConversationBufferMemory
 
-# Streamlit UI
+# Streamlit UI setup
 st.set_page_config(page_title="📊 Tech Trend Analyzer", layout="wide")
 st.title("🧠 Tech News Trend Analyzer with Agents")
 
@@ -21,7 +21,7 @@ hf_token = st.text_input("🔐 Hugging Face API Token", type="password")
 news_api_key = st.text_input("🗝️ NewsAPI Key", type="password")
 run_button = st.button("🚀 Run Analysis")
 
-# Tool to fetch tech news - defined as dict, NOT Tool class
+# Define the tool as a dict, NOT a Tool class (to avoid import errors)
 def fetch_tech_news(topic: str) -> str:
     url = "https://newsapi.org/v2/everything"
     params = {
@@ -65,7 +65,7 @@ if run_button:
         fetcher = Agent(
             role="News Fetcher",
             goal="Get recent news about a topic",
-            tools=[fetch_news_tool],  # pass list of dict tools
+            tools=[fetch_news_tool],  # list of dict tools
             verbose=True,
             llm=llm,
             memory=memory
