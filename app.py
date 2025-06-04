@@ -8,9 +8,8 @@ import pandas as pd
 import re
 import plotly.express as px
 from crewai import Agent, Task, Crew
-
-# جرب import tool من langchain_core.tools لو langchain.tools ما اشتغلش
-from langchain_core.tools import tool
+from langchain_community.llms import HuggingFaceHub
+from langchain.tools import tool
 
 # ===============================
 # 🔧 Streamlit Config
@@ -24,10 +23,13 @@ news_api_key = st.text_input("🗝️ NewsAPI Key", type="password")
 run_button = st.button("🚀 Run Analysis")
 
 # ===============================
-# 🧠 News Fetcher Tool (تمرير api_key كمعامل)
+# 🧠 News Fetcher Tool (expects a dict input)
 # ===============================
 @tool
-def fetch_tech_news(topic: str, api_key: str) -> str:
+def fetch_tech_news(args: dict) -> str:
+    topic = args.get("topic")
+    api_key = args.get("api_key")
+
     url = "https://newsapi.org/v2/everything"
     params = {
         "q": topic,
@@ -82,10 +84,11 @@ if run_button:
             llm=llm
         )
 
+        # Task 1: fetch news with dict input for fetch_tech_news
         task1 = Task(
             description=f"Fetch recent news about {topic}",
             expected_output="List of news headlines and descriptions",
-            agent=fetcher,
+            agent=fetcher
         )
 
         task2 = Task(
@@ -108,7 +111,7 @@ if run_button:
             verbose=True
         )
 
-        # تمرير topic و api_key هنا
+        # kickoff with proper input dictionary matching fetch_tech_news args
         result = crew.kickoff(inputs={"topic": topic, "api_key": news_api_key})
 
         st.success("✅ Agents finished analysis!")
