@@ -12,3 +12,4 @@ mdurl
 pygments
 typing-extensions
 pysqlite3-binary
+plotly
