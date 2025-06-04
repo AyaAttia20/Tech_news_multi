@@ -1,25 +1,25 @@
 # --- Core Application ---
-streamlit==1.45.1
-crewai==0.121.1
+streamlit==1.45.1          # Latest stable (May 2025)
+crewai==0.121.1            # Latest stable (June 2025)
 
 # --- LangChain Ecosystem ---
-langchain==[latest_version]
-langchain-community==[latest_version]
+langchain==0.1.16          # Stable version known to work with crewai
+langchain-community==0.0.38
 
 # --- Data Processing ---
-pandas==[latest_version]
-numpy==[latest_version]
+pandas==2.2.2              # Latest minor patch
+numpy==1.26.4              # Required by pandas
 
 # --- API Clients ---
 requests==2.31.0
 
 # --- Visualization ---
-plotly==[latest_version]
+plotly==5.21.0             # Latest version
 
 # --- Database / Embeddings ---
-chromadb==[latest_version]
+chromadb==0.4.24
 pysqlite3-binary==1.0.3
-tiktoken==[latest_version]
+tiktoken==0.7.0
 
 # --- Text Processing ---
 markdown-it-py==3.0.0
@@ -27,7 +27,7 @@ mdurl==0.1.2
 pygments==2.19.1
 
 # --- UI / Logging ---
-rich==13.7.0  # Pinned to avoid conflicts with streamlit, embedchain, instructor
+rich==13.7.0               # Pinned to avoid conflicts with streamlit, embedchain, instructor
 
 # --- Typing Support ---
 typing-extensions==4.14.0
