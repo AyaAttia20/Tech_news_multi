@@ -18,7 +18,7 @@ plotly==5.21.0
 
 # --- Database / Embeddings ---
 chromadb==0.4.24
-pysqlite3-binary==1.0.3
+pysqlite3-binary==0.5.4
 tiktoken==0.7.0
 
 # --- Text Processing ---
