@@ -9,7 +9,6 @@ import re
 import plotly.express as px
 
 from crewai import Agent, Task, Crew
-from crewai.tools import Tool  # <-- هنا تعديل مهم
 from langchain_community.llms import HuggingFaceHub
 from langchain.memory import ConversationBufferMemory
 
@@ -22,7 +21,7 @@ hf_token = st.text_input("🔐 Hugging Face API Token", type="password")
 news_api_key = st.text_input("🗝️ NewsAPI Key", type="password")
 run_button = st.button("🚀 Run Analysis")
 
-# Tool to fetch tech news (باستخدام crewai.tools.Tool)
+# Tool to fetch tech news - defined as dict, NOT Tool class
 def fetch_tech_news(topic: str) -> str:
     url = "https://newsapi.org/v2/everything"
     params = {
@@ -43,11 +42,11 @@ def fetch_tech_news(topic: str) -> str:
         results.append(f"{title} - {desc}")
     return "\n".join(results)
 
-fetch_news_tool = Tool(
-    name="fetch_tech_news",
-    func=fetch_tech_news,
-    description="Fetch recent tech news by topic"
-)
+fetch_news_tool = {
+    "name": "fetch_tech_news",
+    "func": fetch_tech_news,
+    "description": "Fetch recent tech news by topic"
+}
 
 if run_button:
     if not hf_token or not news_api_key:
@@ -66,10 +65,10 @@ if run_button:
         fetcher = Agent(
             role="News Fetcher",
             goal="Get recent news about a topic",
-            tools=[fetch_news_tool],
+            tools=[fetch_news_tool],  # pass list of dict tools
             verbose=True,
             llm=llm,
-            memory=memory  # مهم جدًا مع الإصدار 0.30.0
+            memory=memory
         )
 
         summarizer = Agent(
