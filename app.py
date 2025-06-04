@@ -1,5 +1,55 @@
-from crewai import CrewAgent  # Updated import
+import sys
+import pysqlite3
+sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
 
+import streamlit as st
+import requests
+import pandas as pd
+import re
+import plotly.express as px
+
+from crewai import Agent, Task, Crew
+from langchain_community.llms import HuggingFaceHub
+from langchain.tools import Tool
+from langchain.memory import ConversationBufferMemory
+
+# Streamlit UI
+st.set_page_config(page_title="📊 Tech Trend Analyzer", layout="wide")
+st.title("🧠 Tech News Trend Analyzer with Agents")
+
+topic = st.text_input("🎯 Enter a technology topic", "AI")
+hf_token = st.text_input("🔐 Hugging Face API Token", type="password")
+news_api_key = st.text_input("🗝️ NewsAPI Key", type="password")
+run_button = st.button("🚀 Run Analysis")
+
+# Tool to fetch tech news
+def fetch_tech_news(topic: str) -> str:
+    url = "https://newsapi.org/v2/everything"
+    params = {
+        "q": topic,
+        "apiKey": news_api_key,
+        "language": "en",
+        "sortBy": "publishedAt",
+        "pageSize": 10
+    }
+    response = requests.get(url, params=params)
+    if response.status_code != 200:
+        return "Failed to fetch news."
+    articles = response.json().get("articles", [])
+    results = []
+    for art in articles:
+        title = art.get('title', 'No title')
+        desc = art.get('description', 'No description')
+        results.append(f"{title} - {desc}")
+    return "\n".join(results)
+
+fetch_news_tool = Tool(
+    name="fetch_tech_news",
+    func=fetch_tech_news,
+    description="Fetch recent tech news by topic"
+)
+
+# Main app logic
 if run_button:
     if not hf_token or not news_api_key:
         st.error("❌ Please enter both Hugging Face and NewsAPI keys.")
@@ -12,27 +62,31 @@ if run_button:
             model_kwargs={"temperature": 0.5, "max_new_tokens": 512}
         )
 
-    
-        fetcher = CrewAgent(
+        memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+
+        fetcher = Agent(
             role="News Fetcher",
             goal="Get recent news about a topic",
             tools=[fetch_news_tool],
             verbose=True,
-            llm=llm
+            llm=llm,
+            memory=memory
         )
 
-        summarizer = CrewAgent(
+        summarizer = Agent(
             role="News Summarizer",
             goal="Summarize the key points of tech news",
             verbose=True,
-            llm=llm
+            llm=llm,
+            memory=memory
         )
 
-        trend_agent = CrewAgent(
+        trend_agent = Agent(
             role="Trend Extractor",
             goal="Extract trending keywords from news content",
             verbose=True,
-            llm=llm
+            llm=llm,
+            memory=memory
         )
 
         task1 = Task(
