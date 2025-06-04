@@ -9,8 +9,8 @@ import re
 import plotly.express as px
 
 from crewai import Agent, Task, Crew
+from crewai.tools import Tool  # <-- هنا تعديل مهم
 from langchain_community.llms import HuggingFaceHub
-from langchain.tools import Tool
 from langchain.memory import ConversationBufferMemory
 
 # Streamlit UI
@@ -22,7 +22,7 @@ hf_token = st.text_input("🔐 Hugging Face API Token", type="password")
 news_api_key = st.text_input("🗝️ NewsAPI Key", type="password")
 run_button = st.button("🚀 Run Analysis")
 
-# Tool to fetch tech news
+# Tool to fetch tech news (باستخدام crewai.tools.Tool)
 def fetch_tech_news(topic: str) -> str:
     url = "https://newsapi.org/v2/everything"
     params = {
@@ -49,7 +49,6 @@ fetch_news_tool = Tool(
     description="Fetch recent tech news by topic"
 )
 
-# Main app logic
 if run_button:
     if not hf_token or not news_api_key:
         st.error("❌ Please enter both Hugging Face and NewsAPI keys.")
@@ -70,7 +69,7 @@ if run_button:
             tools=[fetch_news_tool],
             verbose=True,
             llm=llm,
-            memory=memory
+            memory=memory  # مهم جدًا مع الإصدار 0.30.0
         )
 
         summarizer = Agent(
