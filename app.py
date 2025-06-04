@@ -9,10 +9,8 @@ import re
 import plotly.express as px
 from crewai import Agent, Task, Crew
 from langchain_community.llms import HuggingFaceHub
+from langchain.tools import Tool
 
-# ===============================
-# Streamlit Config
-# ===============================
 st.set_page_config(page_title="📊 Tech Trend Analyzer", layout="wide")
 st.title("🧠 Tech News Trend Analyzer with Agents")
 
@@ -21,14 +19,11 @@ hf_token = st.text_input("🔐 Hugging Face API Token", type="password")
 news_api_key = st.text_input("🗝️ NewsAPI Key", type="password")
 run_button = st.button("🚀 Run Analysis")
 
-# ===============================
-# News fetch function (no @tool)
-# ===============================
-def fetch_tech_news(topic: str, api_key: str) -> str:
+def fetch_tech_news(topic: str) -> str:
     url = "https://newsapi.org/v2/everything"
     params = {
         "q": topic,
-        "apiKey": api_key,
+        "apiKey": news_api_key,
         "language": "en",
         "sortBy": "publishedAt",
         "pageSize": 10
@@ -44,33 +39,12 @@ def fetch_tech_news(topic: str, api_key: str) -> str:
         results.append(f"{title} - {desc}")
     return "\n".join(results)
 
-# ===============================
-# Agents classes with internal calls
-# ===============================
-class FetcherAgent(Agent):
-    def run(self, inputs):
-        topic = inputs.get("topic")
-        api_key = inputs.get("news_api_key")
-        news = fetch_tech_news(topic, api_key)
-        return news
+fetch_news_tool = Tool(
+    name="fetch_tech_news",
+    func=fetch_tech_news,
+    description="Fetch recent tech news by topic"
+)
 
-class SummarizerAgent(Agent):
-    def run(self, inputs):
-        news = inputs.get("news")
-        prompt = f"Please summarize the following tech news:\n{news}"
-        summary = self.llm(prompt)
-        return summary
-
-class TrendAgent(Agent):
-    def run(self, inputs):
-        news = inputs.get("news")
-        prompt = f"Extract top 10 trending keywords from this news:\n{news}"
-        keywords = self.llm(prompt)
-        return keywords
-
-# ===============================
-# Run app logic
-# ===============================
 if run_button:
     if not hf_token or not news_api_key:
         st.error("❌ Please enter both Hugging Face and NewsAPI keys.")
@@ -83,32 +57,66 @@ if run_button:
             model_kwargs={"temperature": 0.5, "max_new_tokens": 512}
         )
 
-        fetcher = FetcherAgent(role="News Fetcher", goal="Get recent news about a topic", verbose=True, llm=llm)
-        summarizer = SummarizerAgent(role="News Summarizer", goal="Summarize the key points of tech news", verbose=True, llm=llm)
-        trend_agent = TrendAgent(role="Trend Extractor", goal="Extract trending keywords from news content", verbose=True, llm=llm)
+        fetcher = Agent(
+            role="News Fetcher",
+            goal="Get recent news about a topic",
+            tools=[fetch_news_tool],
+            verbose=True,
+            llm=llm
+        )
 
-        # Step 1: fetch news
-        news = fetcher.run({"topic": topic, "news_api_key": news_api_key})
+        summarizer = Agent(
+            role="News Summarizer",
+            goal="Summarize the key points of tech news",
+            verbose=True,
+            llm=llm
+        )
 
-        # Step 2: summarize news
-        summary = summarizer.run({"news": news})
+        trend_agent = Agent(
+            role="Trend Extractor",
+            goal="Extract trending keywords from news content",
+            verbose=True,
+            llm=llm
+        )
 
-        # Step 3: extract trends
-        keywords_raw = trend_agent.run({"news": news})
+        task1 = Task(
+            description=f"Fetch recent news about {topic}",
+            expected_output="List of news headlines and descriptions",
+            agent=fetcher
+        )
+
+        task2 = Task(
+            description="Summarize the main points from the news.",
+            expected_output="Concise summary paragraph",
+            agent=summarizer,
+            context=[task1]
+        )
+
+        task3 = Task(
+            description="Extract the top trending keywords from the news headlines.",
+            expected_output="A list of top 10 trending keywords",
+            agent=trend_agent,
+            context=[task1]
+        )
+
+        crew = Crew(
+            agents=[fetcher, summarizer, trend_agent],
+            tasks=[task1, task2, task3],
+            verbose=True
+        )
+
+        result = crew.kickoff(inputs={"topic": topic})
 
         st.success("✅ Agents finished analysis!")
 
-        # Summary display
         st.subheader("🧠 Summary")
-        st.write(summary)
+        st.write(task2.output)
 
-        # Keywords display (حاول تنفذ تنظيف للkeywords)
         st.subheader("📈 Trending Keywords")
-        keywords = [re.sub(r"[-•]\s*", "", line.strip()) for line in str(keywords_raw).split("\n") if line.strip()]
+        keywords = [re.sub(r"[-•]\s*", "", line.strip()) for line in str(task3.output).split("\n") if line.strip()]
         df_keywords = pd.DataFrame({'Keyword': keywords[:10]})
         fig = px.bar(df_keywords, x='Keyword', title="Top Trending Keywords", color='Keyword')
         st.plotly_chart(fig, use_container_width=True)
 
-        # Raw news display
         st.subheader("🗞 Raw News Fetched")
-        st.code(news, language="markdown")
+        st.code(task1.output, language="markdown")
