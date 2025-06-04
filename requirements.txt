@@ -11,3 +11,4 @@ markdown-it-py
 mdurl
 pygments
 typing-extensions
+pysqlite3-binary
