@@ -1,10 +1,33 @@
+# Core Application
 streamlit==1.33.0
 crewai==0.30.0
+
+# LangChain Ecosystem
 langchain==0.1.16
 langchain-community==0.0.38
-requests==2.31.0
+
+# Data Processing
 pandas==2.2.1
+numpy==1.26.4  # Required by pandas
+
+# API Clients
+requests==2.31.0
+
+# Visualization
 plotly==5.18.0
+
+# Database/Embeddings
+chromadb==0.4.24
 pysqlite3-binary==1.0.3
 tiktoken==0.7.0
-chromadb==0.4.24
+
+# Text Processing
+markdown-it-py==3.0.0
+mdurl==0.1.2
+pygments==2.19.1
+
+# UI/Logging (resolving conflicts)
+rich==13.7.0  # Pinned to resolve conflicts with streamlit/embedchain/instructor
+
+# Type Support
+typing-extensions==4.14.0
